@@ -167,9 +167,11 @@ class ExitCodeHandler {
     running_ = false;
 
     // Fork to wake up waitpid.
+#if !(defined(TARGET_OS_TV) && TARGET_OS_TV)
     if (TEMP_FAILURE_RETRY(fork()) == 0) {
       exit(0);
     }
+#endif
 
     monitor_->Notify();
 
@@ -300,6 +302,7 @@ class ProcessStarter {
   }
 
   int Start() {
+#if !(defined(TARGET_OS_TV) && TARGET_OS_TV)
     // Create pipes required.
     int err = CreatePipes();
     if (err != 0) {
@@ -389,6 +392,7 @@ class ProcessStarter {
     ASSERT(exec_control_[1] == -1);
 
     *id_ = pid;
+#endif
     return 0;
   }
 
@@ -447,6 +451,7 @@ class ProcessStarter {
   }
 
   void ExecProcess() {
+#if !(defined(TARGET_OS_TV) && TARGET_OS_TV)
     if (mode_ == kNormal) {
       if (TEMP_FAILURE_RETRY(dup2(write_out_[0], STDIN_FILENO)) == -1) {
         ReportChildError();
@@ -479,9 +484,11 @@ class ProcessStarter {
 
     execvp(path_, const_cast<char* const*>(program_arguments_));
     ReportChildError();
+#endif
   }
 
   void ExecDetachedProcess() {
+#if !(defined(TARGET_OS_TV) && TARGET_OS_TV)
     if (mode_ == kDetached) {
       ASSERT(write_out_[0] == -1);
       ASSERT(write_out_[1] == -1);
@@ -543,6 +550,7 @@ class ProcessStarter {
       // Exit the intermeiate process.
       exit(0);
     }
+#endif
   }
 
   int RegisterProcess(pid_t pid) {
