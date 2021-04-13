@@ -122,7 +122,7 @@
 // TODO(iposva): Rename HOST_OS_MACOS to HOST_OS_MAC to inherit
 // the value defined in TargetConditionals.h
 #define HOST_OS_MACOS 1
-#if TARGET_OS_IPHONE
+#if defined(TARGET_OS_IPHONE) || defined(TARGET_OS_TV)
 #define HOST_OS_IOS 1
 #endif
 
