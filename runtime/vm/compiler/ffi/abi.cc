@@ -55,7 +55,7 @@ static_assert(offsetof(AbiAlignmentUint64, i) == 8,
 #define DART_TARGET_OS_NAME Linux
 #define DART_TARGET_OS_NAME_LC linux
 #elif defined(DART_TARGET_OS_MACOS)
-#if DART_TARGET_OS_MACOS_IOS
+#if defined(DART_TARGET_OS_MACOS_IOS) || defined(TARGET_OS_TV)
 #define DART_TARGET_OS_NAME IOS
 #define DART_TARGET_OS_NAME_LC ios
 #else

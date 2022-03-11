@@ -56,7 +56,7 @@ DEFINE_FLAG(bool,
             "Use integer division instruction if supported");
 
 #if defined(TARGET_HOST_MISMATCH)
-#if defined(DART_TARGET_OS_ANDROID) || defined(DART_TARGET_OS_MACOS_IOS)
+#if defined(DART_TARGET_OS_ANDROID) || defined(DART_TARGET_OS_MACOS_IOS) || defined(TARGET_OS_TV)
 DEFINE_FLAG(bool, sim_use_hardfp, false, "Use the hardfp ABI.");
 #else
 DEFINE_FLAG(bool, sim_use_hardfp, true, "Use the hardfp ABI.");
