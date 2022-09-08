@@ -118,7 +118,7 @@
 // Define the flavor of Mac OS we are running on.
 #include <TargetConditionals.h>
 #define DART_HOST_OS_MACOS 1
-#if TARGET_OS_IPHONE
+#if defined(TARGET_OS_IPHONE) || defined(TARGET_OS_TV)
 #define DART_HOST_OS_IOS 1
 #endif
 

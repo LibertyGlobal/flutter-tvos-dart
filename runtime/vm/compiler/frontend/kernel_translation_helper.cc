@@ -1581,7 +1581,9 @@ void MetadataHelper::ScanMetadataMappings() {
 
     if (H.StringEquals(tag, tag_)) {
       if ((!FLAG_precompiled_mode) && precompiler_only_) {
+#if !(defined(TARGET_OS_TV) && TARGET_OS_TV)
         FATAL1("%s metadata is allowed in precompiled mode only", tag_);
+#endif
       }
       SetMetadataMappings(offset + kUInt32Size, mappings_num);
       return;
