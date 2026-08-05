@@ -54,7 +54,7 @@ DEFINE_FLAG(bool,
             "Use integer division instruction if supported");
 
 #if defined(TARGET_HOST_MISMATCH)
-#if defined(DART_TARGET_OS_ANDROID) || defined(DART_TARGET_OS_MACOS_IOS)
+#if defined(DART_TARGET_OS_ANDROID) || defined(DART_TARGET_OS_MACOS_IOS) || defined(TARGET_OS_TV)
 DEFINE_FLAG(bool, sim_use_hardfp, false, "Use the hardfp ABI.");
 #else
 DEFINE_FLAG(bool, sim_use_hardfp, true, "Use the hardfp ABI.");
@@ -108,6 +108,7 @@ bool HostCPUFeatures::integer_division_supported_ = false;
 bool HostCPUFeatures::neon_supported_ = false;
 bool HostCPUFeatures::hardfp_supported_ = false;
 const char* HostCPUFeatures::hardware_ = nullptr;
+intptr_t HostCPUFeatures::store_pc_read_offset_ = 8;
 #if defined(DEBUG)
 bool HostCPUFeatures::initialized_ = false;
 #endif

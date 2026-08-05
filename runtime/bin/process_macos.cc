@@ -166,9 +166,11 @@ class ExitCodeHandler {
     running_ = false;
 
     // Fork to wake up waitpid.
-    if (TEMP_FAILURE_RETRY(fork()) == 0) {
-      _Exit(0);
-    }
+    #if !(defined(TARGET_OS_TV) && TARGET_OS_TV)
+      if (TEMP_FAILURE_RETRY(fork()) == 0) {
+        _Exit(0);
+      }
+    #endif
 
     monitor_->Notify();
 
@@ -299,95 +301,97 @@ class ProcessStarter {
   }
 
   int Start() {
-    // Create pipes required.
-    int err = CreatePipes();
-    if (err != 0) {
-      return err;
-    }
-
-    // Fork to create the new process.
-    pid_t pid = TEMP_FAILURE_RETRY(fork());
-    if (pid < 0) {
-      // Failed to fork.
-      return CleanupAndReturnError();
-    } else if (pid == 0) {
-      // This runs in the new process.
-      NewProcess();
-    }
-
-    // This runs in the original process.
-
-    // If the child process is not started in detached mode, be sure to
-    // listen for exit-codes, now that we have a non detached child process
-    // and also Register this child process.
-    if (Process::ModeIsAttached(mode_)) {
-      ExitCodeHandler::ProcessStarted();
-      err = RegisterProcess(pid);
+  #if !(defined(TARGET_OS_TV) && TARGET_OS_TV)
+      // Create pipes required.
+      int err = CreatePipes();
       if (err != 0) {
         return err;
       }
-    }
 
-    // Notify child process to start. This is done to delay the call to exec
-    // until the process is registered above, and we are ready to receive the
-    // exit code.
-    char msg = '1';
-    int bytes_written =
-        FDUtils::WriteToBlocking(read_in_[1], &msg, sizeof(msg));
-    if (bytes_written != sizeof(msg)) {
-      return CleanupAndReturnError();
-    }
-
-    // Read the result of executing the child process.
-    close(exec_control_[1]);
-    exec_control_[1] = -1;
-    if (Process::ModeIsAttached(mode_)) {
-      err = ReadExecResult();
-    } else {
-      err = ReadDetachedExecResult(&pid);
-    }
-    close(exec_control_[0]);
-    exec_control_[0] = -1;
-
-    // Return error code if any failures.
-    if (err != 0) {
-      if (Process::ModeIsAttached(mode_)) {
-        // Since exec() failed, we're not interested in the exit code.
-        // We close the reading side of the exit code pipe here.
-        // GetProcessExitCodes will get a broken pipe error when it
-        // tries to write to the writing side of the pipe and it will
-        // ignore the error.
-        close(*exit_event_);
-        *exit_event_ = -1;
+      // Fork to create the new process.
+      pid_t pid = TEMP_FAILURE_RETRY(fork());
+      if (pid < 0) {
+        // Failed to fork.
+        return CleanupAndReturnError();
+      } else if (pid == 0) {
+        // This runs in the new process.
+        NewProcess();
       }
-      CloseAllPipes();
-      return err;
-    }
 
-    if (Process::ModeHasStdio(mode_)) {
-      // Connect stdio, stdout and stderr.
-      FDUtils::SetNonBlocking(read_in_[0]);
-      *in_ = read_in_[0];
-      close(read_in_[1]);
-      FDUtils::SetNonBlocking(write_out_[1]);
-      *out_ = write_out_[1];
-      close(write_out_[0]);
-      FDUtils::SetNonBlocking(read_err_[0]);
-      *err_ = read_err_[0];
-      close(read_err_[1]);
-    } else {
-      // Close all fds.
-      close(read_in_[0]);
-      close(read_in_[1]);
-      ASSERT(write_out_[0] == -1);
-      ASSERT(write_out_[1] == -1);
-      ASSERT(read_err_[0] == -1);
-      ASSERT(read_err_[1] == -1);
-    }
-    ASSERT(exec_control_[0] == -1);
-    ASSERT(exec_control_[1] == -1);
+      // This runs in the original process.
 
-    *id_ = pid;
+      // If the child process is not started in detached mode, be sure to
+      // listen for exit-codes, now that we have a non detached child process
+      // and also Register this child process.
+      if (Process::ModeIsAttached(mode_)) {
+        ExitCodeHandler::ProcessStarted();
+        err = RegisterProcess(pid);
+        if (err != 0) {
+          return err;
+        }
+      }
+
+      // Notify child process to start. This is done to delay the call to exec
+      // until the process is registered above, and we are ready to receive the
+      // exit code.
+      char msg = '1';
+      int bytes_written =
+          FDUtils::WriteToBlocking(read_in_[1], &msg, sizeof(msg));
+      if (bytes_written != sizeof(msg)) {
+        return CleanupAndReturnError();
+      }
+
+      // Read the result of executing the child process.
+      close(exec_control_[1]);
+      exec_control_[1] = -1;
+      if (Process::ModeIsAttached(mode_)) {
+        err = ReadExecResult();
+      } else {
+        err = ReadDetachedExecResult(&pid);
+      }
+      close(exec_control_[0]);
+      exec_control_[0] = -1;
+
+      // Return error code if any failures.
+      if (err != 0) {
+        if (Process::ModeIsAttached(mode_)) {
+          // Since exec() failed, we're not interested in the exit code.
+          // We close the reading side of the exit code pipe here.
+          // GetProcessExitCodes will get a broken pipe error when it
+          // tries to write to the writing side of the pipe and it will
+          // ignore the error.
+          close(*exit_event_);
+          *exit_event_ = -1;
+        }
+        CloseAllPipes();
+        return err;
+      }
+
+      if (Process::ModeHasStdio(mode_)) {
+        // Connect stdio, stdout and stderr.
+        FDUtils::SetNonBlocking(read_in_[0]);
+        *in_ = read_in_[0];
+        close(read_in_[1]);
+        FDUtils::SetNonBlocking(write_out_[1]);
+        *out_ = write_out_[1];
+        close(write_out_[0]);
+        FDUtils::SetNonBlocking(read_err_[0]);
+        *err_ = read_err_[0];
+        close(read_err_[1]);
+      } else {
+        // Close all fds.
+        close(read_in_[0]);
+        close(read_in_[1]);
+        ASSERT(write_out_[0] == -1);
+        ASSERT(write_out_[1] == -1);
+        ASSERT(read_err_[0] == -1);
+        ASSERT(read_err_[1] == -1);
+      }
+      ASSERT(exec_control_[0] == -1);
+      ASSERT(exec_control_[1] == -1);
+
+      *id_ = pid;
+    #endif
     return 0;
   }
 
@@ -446,101 +450,105 @@ class ProcessStarter {
   }
 
   void ExecProcess() {
-    if (mode_ == kNormal) {
-      if (TEMP_FAILURE_RETRY(dup2(write_out_[0], STDIN_FILENO)) == -1) {
+    #if !(defined(TARGET_OS_TV) && TARGET_OS_TV)
+      if (mode_ == kNormal) {
+        if (TEMP_FAILURE_RETRY(dup2(write_out_[0], STDIN_FILENO)) == -1) {
+          ReportChildError();
+        }
+
+        if (TEMP_FAILURE_RETRY(dup2(read_in_[1], STDOUT_FILENO)) == -1) {
+          ReportChildError();
+        }
+
+        if (TEMP_FAILURE_RETRY(dup2(read_err_[1], STDERR_FILENO)) == -1) {
+          ReportChildError();
+        }
+      } else {
+        ASSERT(mode_ == kInheritStdio);
+      }
+
+      if (working_directory_ != nullptr &&
+          TEMP_FAILURE_RETRY(chdir(working_directory_)) == -1) {
         ReportChildError();
       }
 
-      if (TEMP_FAILURE_RETRY(dup2(read_in_[1], STDOUT_FILENO)) == -1) {
-        ReportChildError();
+      if (program_environment_ != nullptr) {
+        // On MacOS you have to do a bit of magic to get to the
+        // environment strings.
+        char*** environ = _NSGetEnviron();
+        *environ = program_environment_;
       }
 
-      if (TEMP_FAILURE_RETRY(dup2(read_err_[1], STDERR_FILENO)) == -1) {
-        ReportChildError();
-      }
-    } else {
-      ASSERT(mode_ == kInheritStdio);
-    }
-
-    if (working_directory_ != nullptr &&
-        TEMP_FAILURE_RETRY(chdir(working_directory_)) == -1) {
+      execvp(path_, const_cast<char* const*>(program_arguments_));
       ReportChildError();
-    }
-
-    if (program_environment_ != nullptr) {
-      // On MacOS you have to do a bit of magic to get to the
-      // environment strings.
-      char*** environ = _NSGetEnviron();
-      *environ = program_environment_;
-    }
-
-    execvp(path_, const_cast<char* const*>(program_arguments_));
-    ReportChildError();
+    #endif
   }
 
   void ExecDetachedProcess() {
-    if (mode_ == kDetached) {
-      ASSERT(write_out_[0] == -1);
-      ASSERT(write_out_[1] == -1);
-      ASSERT(read_err_[0] == -1);
-      ASSERT(read_err_[1] == -1);
-      // For a detached process the pipe to connect stdout is only used for
-      // signaling when to do the first fork.
-      close(read_in_[0]);
-      read_in_[0] = -1;
-      close(read_in_[1]);
-      read_in_[1] = -1;
-    } else {
-      // Don't close any fds if keeping stdio open to the detached process.
-      ASSERT(mode_ == kDetachedWithStdio);
-    }
-    // Fork once more to start a new session.
-    pid_t pid = TEMP_FAILURE_RETRY(fork());
-    if (pid < 0) {
-      ReportChildError();
-    } else if (pid == 0) {
-      // Start a new session.
-      if (TEMP_FAILURE_RETRY(setsid()) == -1) {
-        ReportChildError();
+    #if !(defined(TARGET_OS_TV) && TARGET_OS_TV)
+      if (mode_ == kDetached) {
+        ASSERT(write_out_[0] == -1);
+        ASSERT(write_out_[1] == -1);
+        ASSERT(read_err_[0] == -1);
+        ASSERT(read_err_[1] == -1);
+        // For a detached process the pipe to connect stdout is only used for
+        // signaling when to do the first fork.
+        close(read_in_[0]);
+        read_in_[0] = -1;
+        close(read_in_[1]);
+        read_in_[1] = -1;
       } else {
-        // Do a final fork to not be the session leader.
-        pid = TEMP_FAILURE_RETRY(fork());
-        if (pid < 0) {
-          ReportChildError();
-        } else if (pid == 0) {
-          if (mode_ == kDetached) {
-            SetupDetached();
-          } else {
-            SetupDetachedWithStdio();
-          }
-
-          if ((working_directory_ != nullptr) &&
-              (TEMP_FAILURE_RETRY(chdir(working_directory_)) == -1)) {
-            ReportChildError();
-          }
-
-          if (program_environment_ != nullptr) {
-            // On MacOS you have to do a bit of magic to get to the
-            // environment strings.
-            char*** environ = _NSGetEnviron();
-            *environ = program_environment_;
-          }
-
-          // Report the final PID and do the exec.
-          ReportPid(getpid());  // getpid cannot fail.
-          execvp(path_, const_cast<char* const*>(program_arguments_));
+        // Don't close any fds if keeping stdio open to the detached process.
+        ASSERT(mode_ == kDetachedWithStdio);
+      }
+      // Fork once more to start a new session.
+      pid_t pid = TEMP_FAILURE_RETRY(fork());
+      if (pid < 0) {
+        ReportChildError();
+      } else if (pid == 0) {
+        // Start a new session.
+        if (TEMP_FAILURE_RETRY(setsid()) == -1) {
           ReportChildError();
         } else {
-          // Exit the intermediate process. Avoid any atexit callbacks
-          // to prevent deadlocks.
-          _Exit(0);
+          // Do a final fork to not be the session leader.
+          pid = TEMP_FAILURE_RETRY(fork());
+          if (pid < 0) {
+            ReportChildError();
+          } else if (pid == 0) {
+            if (mode_ == kDetached) {
+              SetupDetached();
+            } else {
+              SetupDetachedWithStdio();
+            }
+
+            if ((working_directory_ != nullptr) &&
+                (TEMP_FAILURE_RETRY(chdir(working_directory_)) == -1)) {
+              ReportChildError();
+            }
+
+            if (program_environment_ != nullptr) {
+              // On MacOS you have to do a bit of magic to get to the
+              // environment strings.
+              char*** environ = _NSGetEnviron();
+              *environ = program_environment_;
+            }
+
+            // Report the final PID and do the exec.
+            ReportPid(getpid());  // getpid cannot fail.
+            execvp(path_, const_cast<char* const*>(program_arguments_));
+            ReportChildError();
+          } else {
+            // Exit the intermediate process. Avoid any atexit callbacks
+            // to prevent deadlocks.
+            _Exit(0);
+          }
         }
+      } else {
+        // Exit the intermediate process. Avoid any atexit callbacks
+        // to prevent deadlocks.
+        _Exit(0);
       }
-    } else {
-      // Exit the intermediate process. Avoid any atexit callbacks
-      // to prevent deadlocks.
-      _Exit(0);
-    }
+    #endif
   }
 
   int RegisterProcess(pid_t pid) {
@@ -903,6 +911,11 @@ int Process::Exec(Namespace* namespc,
                   const char* working_directory,
                   char* errmsg,
                   intptr_t errmsg_len) {
+ #if TARGET_OS_TV
+  // Process spawning is not supported on tvOS
+  snprintf(errmsg, errmsg_len, "Process spawning not supported on tvOS");
+  return -1;
+  #else
   if (working_directory != nullptr &&
       TEMP_FAILURE_RETRY(chdir(working_directory)) == -1) {
     Utils::StrError(errno, errmsg, errmsg_len);
@@ -912,6 +925,8 @@ int Process::Exec(Namespace* namespc,
   execvp(const_cast<const char*>(path), const_cast<char* const*>(arguments));
   Utils::StrError(errno, errmsg, errmsg_len);
   return -1;
+
+  #endif
 }
 
 static int SignalMap(intptr_t id) {

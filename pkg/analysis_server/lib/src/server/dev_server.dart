@@ -58,7 +58,7 @@ class DevAnalysisServer {
             (params['analysis'] as Map<String, Object>)['isAnalyzing'] as bool;
         if (isAnalyzing) {
           beganAnalysis = true;
-        } else if (beganAnalysis) {
+        } else if (beganAnalysis && !whenComplete.isCompleted) {
           beganAnalysis = false;
           timer.stop();
           var seconds = timer.elapsedMilliseconds / 1000.0;
